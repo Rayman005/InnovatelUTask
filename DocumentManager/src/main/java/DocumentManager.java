@@ -2,53 +2,71 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
-import java.util.Collections;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
-/**
- * For implement this task focus on clear code, and make this solution as simple readable as possible
- * Don't worry about performance, concurrency, etc
- * You can use in Memory collection for sore data
- * <p>
- * Please, don't change class name, and signature for methods save, search, findById
- * Implementations should be in a single class
- * This class could be auto tested
- */
+
 public class DocumentManager {
 
+    private final Map<String, Document> storage = new ConcurrentHashMap<>();
+
     /**
-     * Implementation of this method should upsert the document to your storage
-     * And generate unique id if it does not exist, don't change [created] field
-     *
      * @param document - document content and author data
      * @return saved document
      */
     public Document save(Document document) {
-
-        return null;
+        if (document.getId() == null || document.getId().isEmpty()) {
+            document = document.builder()
+                    .id(UUID.randomUUID().toString())
+                    .title(document.getTitle())
+                    .content(document.getContent())
+                    .author(document.getAuthor())
+                    .created(Instant.now())
+                    .build();
+        }
+        storage.put(document.getId(), document);
+        return document;
     }
 
+
     /**
-     * Implementation this method should find documents which match with request
-     *
      * @param request - search request, each field could be null
      * @return list matched documents
      */
     public List<Document> search(SearchRequest request) {
-
-        return Collections.emptyList();
+        return storage.values().stream()
+                .filter(doc -> request.titlePrefixes == null ||
+                        request.getTitlePrefixes().stream().anyMatch(prefix -> doc.getTitle().startsWith(prefix)))
+                .filter(doc -> request.getContainsContents() == null ||
+                        request.getContainsContents().stream().anyMatch(content -> doc.getContent().contains(content)))
+                .filter(doc -> request.getAuthorIds() == null ||
+                        request.getAuthorIds().contains(doc.getAuthor().getId()))
+                .filter(doc -> (request.getCreatedFrom() == null || !doc.getCreated().isBefore(request.getCreatedFrom())) &&
+                        (request.getCreatedTo() == null || !doc.getCreated().isAfter(request.getCreatedTo())))
+                .collect(Collectors.toList());
     }
 
     /**
-     * Implementation this method should find document by id
-     *
      * @param id - document id
      * @return optional document
      */
     public Optional<Document> findById(String id) {
+        return Optional.ofNullable(storage.get(id));
+    }
 
-        return Optional.empty();
+    public Map<String, Document> getStorage() {
+        return storage;
+    }
+
+    @Override
+    public String toString() {
+        return "DocumentManager{" +
+                "storage=" + storage +
+                '}';
     }
 
     @Data
